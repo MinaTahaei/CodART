@@ -1,5 +1,5 @@
 try:
-    import understand
+    import understand as und
 except ModuleNotFoundError:
     # Error handling
     pass
@@ -66,7 +66,7 @@ class MakeFieldFinalRefactoringListener(JavaParserLabeledListener):
         self.is_final = False
 
     def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
-        print("Refactoring started, please wait...")
+
         class_identifier = ctx.IDENTIFIER().getText()
         if class_identifier == self.source_class:
             self.is_source_class = True
@@ -98,7 +98,7 @@ class MakeFieldFinalRefactoringListener(JavaParserLabeledListener):
                         text=grand_parent_ctx.modifier(0).getText() + ' final'
                     )
 
-        print("Finished Processing...")
+
 
 
 if __name__ == '__main__':
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     field_name = "length"
     mainfile = ""
 
-    db = understand.open(udb_path)
+    db = und.open(udb_path)
 
     for cls in db.ents("class"):
         if (cls.simplename() == class_name):

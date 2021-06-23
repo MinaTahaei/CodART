@@ -1,10 +1,10 @@
-import os
+"""
 
-try:
-    import understand
-except ModuleNotFoundError:
-    # Error handling
-    pass
+
+"""
+
+__version__ = '0.1.0'
+__author__ = 'IUST-Students'
 
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
@@ -13,6 +13,8 @@ from gen.java.JavaParser import JavaParser
 from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
+
+from utilization.setup_understand import *
 
 
 class DecreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
@@ -72,7 +74,7 @@ class DecreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
             self.tempdeclarationcode = ""
 
     def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
-        print("Refactoring started, please wait...")
+
         class_identifier = ctx.IDENTIFIER().getText()
         if class_identifier == self.source_class:
             self.is_source_class = True
@@ -103,16 +105,14 @@ class DecreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
                     to_idx=grand_parent_ctx.modifier(0).stop.tokenIndex,
                     text='public ' + grand_parent_ctx.modifier(0).getText())
 
-        print("Finished Processing...")
 
-
-if __name__ == '__main__':
+def main():
     print("Decrease Field Visibility")
     udb_path = "/home/ali/Documents/compiler/Research/xerces2-j/xerces2-j.udb"
     class_name = "AttributesImpl"
     field_name = "length"
     mainfile = ""
-    db = understand.open(udb_path)
+    db = und.open(udb_path)
     for cls in db.ents("class"):
         if (cls.simplename() == class_name):
             if cls.kindname() != "Unknown Class":

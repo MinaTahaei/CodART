@@ -7,7 +7,7 @@ __author__ = 'Morteza'
 import os
 
 try:
-    import understand
+    import understand as und
 except ModuleNotFoundError:
     # Error handling
     pass
@@ -76,7 +76,7 @@ class IncreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
         self.tempdeclarationcode = ""
 
     def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
-        print("Refactoring started, please wait...")
+
         class_identifier = ctx.IDENTIFIER().getText()
         if class_identifier == self.source_class:
             self.is_source_class = True
@@ -120,7 +120,7 @@ class IncreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
 
             self.token_stream_rewriter.insertAfter(ctx.stop.tokenIndex, new_code)
 
-        print("Finished Processing...")
+
 
 
 class PropagationIncreaseFieldVisibilityRefactoringListener(JavaParserLabeledListener):
@@ -260,7 +260,7 @@ class PropagationIncreaseFieldVisibility_GetObjects_RefactoringListener(JavaPars
                 self.objects.append(objectname)
 
 
-if __name__ == '__main__':
+def main():
     print("Increase Field Visibility")
     udb_path = "/home/ali/Documents/compiler/Research/xerces2-j/xerces2-j3.udb"
     class_name = "ListNode"
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     propagate_classes = set()
     file_list_include_file_name_that_edited = ""
     mainfile = ""
-    db = understand.open(udb_path)
+    db = und.open(udb_path)
     for field in db.ents("public variable"):
         if (str(field) == str(class_name + "." + field_name)):
             # get path file include this field.
