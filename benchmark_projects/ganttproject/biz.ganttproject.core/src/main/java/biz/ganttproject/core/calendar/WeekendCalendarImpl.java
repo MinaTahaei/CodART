@@ -84,8 +84,7 @@ public class WeekendCalendarImpl extends GPCalendarBase implements GPCalendarCal
   }
 
   public void reset() {
-    myRecurringEvents.clear();
-    myOneOffEvents.clear();
+		clearMap();
     for (int i = 0; i < myTypes.length; i++) {
       myTypes[i] = GPCalendar.DayType.WORKING;
     }
@@ -93,6 +92,11 @@ public class WeekendCalendarImpl extends GPCalendarBase implements GPCalendarCal
     setWeekDayType(GregorianCalendar.SUNDAY, GPCalendar.DayType.WEEKEND);
     fireCalendarChanged();
   }
+	private void clearMap()
+	{
+    myRecurringEvents.clear();
+    myOneOffEvents.clear();
+	}
   
   @Override
   public List<GPCalendarActivity> getActivities(Date startDate, final Date endDate) {
