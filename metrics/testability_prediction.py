@@ -1,7 +1,7 @@
 """
 
 This module contains testability prediction script
-to be used in refactoring process in addition to qmood metrics
+to be used in refactoring process in addition to QMOOD metrics
 
 ## Reference
 [1] ADAFEST2 paper
@@ -10,44 +10,34 @@ to be used in refactoring process in addition to qmood metrics
 
 """
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __author__ = 'Morteza Zakeri'
 
-
-import os
 import math
-import datetime
+import os
 import warnings
 
-import pandas as pd
-import numpy as np
-
-from sklearnex import patch_sklearn
-
-# patch_sklearn()
-
-
 import joblib
-from joblib import dump, load
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed, wrap_non_picklable_objects
 
-from sklearn.metrics import *
-from sklearn.preprocessing import QuantileTransformer
-from sklearn.inspection import permutation_importance
-from sklearn.neural_network import MLPRegressor
-from sklearn import linear_model
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import ShuffleSplit, GridSearchCV
-from sklearn import tree, preprocessing
+try:
+    import understand as und
+except ImportError as e:
+    print(e)
+
 from sklearn.experimental import enable_hist_gradient_boosting  # noqa
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, HistGradientBoostingRegressor, \
-    VotingRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import QuantileTransformer
 
 import metrics
 from metrics import metrics_names
-from metrics_jcode_odor import JCodeOdorMetric
-from naming import UnderstandUtility
+from metrics.metrics_jcode_odor import JCodeOdorMetric
+from metrics.metrics_coverability import UnderstandUtility
 
-import understand
+
+# patch_sklearn()
 
 
 class TestabilityMetrics:
@@ -688,7 +678,7 @@ class TestabilityMetrics:
             return None
         package = package_list[0]
         # print('kind:', package.kind())
-        print('Computing package metrics for class: "{0}" in package: "{1}"'.format(class_name, package.longname()))
+        # print('Computing package metrics for class: "{0}" in package: "{1}"'.format(class_name, package.longname()))
 
         # Print info
         # print('package metrics')
@@ -1000,6 +990,51 @@ class TestabilityMetrics:
             #         raise ValueError('Required data for systematic metric computation is not enough!')
 
 
+def do(class_entity_long_name, project_path):
+    import understand as und
+    db = und.open(project_path)
+
+    class_entity = UnderstandUtility.get_class_entity_by_name(class_name=class_entity_long_name, db=db)
+    one_class_metrics_value = [class_entity.longname()]
+    # print('Calculating package metrics')
+    package_metrics_dict = TestabilityMetrics.compute_java_package_metrics(db=db,
+                                                                           class_name=class_entity.longname())
+    if package_metrics_dict is None:
+        # raise TypeError('No package metric for item {} was found'.format(class_entity.longname()))
+        return
+    # print('Calculating class lexicon metrics')
+    class_lexicon_metrics_dict = TestabilityMetrics.compute_java_class_metrics_lexicon(db=db,
+                                                                                       entity=class_entity)
+    if class_lexicon_metrics_dict is None:
+        # raise TypeError('No class lexicon metric for item {} was found'.format(class_entity.longname()))
+        return
+    # print('Calculating class ordinary metrics')
+    class_ordinary_metrics_dict = TestabilityMetrics.compute_java_class_metrics2(db=db,
+                                                                                 entity=class_entity)
+    if class_ordinary_metrics_dict is None:
+        # raise TypeError('No class ordinary metric for item {} was found'.format(class_entity.longname()))
+        return
+
+    # Write project_metrics_dict
+    # for metric_name in TestabilityMetrics.get_project_metrics_names():
+    #     one_class_metrics_value.append(project_metrics_dict[metric_name])
+
+    # Write package_metrics_dict
+    for metric_name in TestabilityMetrics.get_package_metrics_names():
+        one_class_metrics_value.append(package_metrics_dict[metric_name])
+
+    # Write class_lexicon_metrics_dict
+    for metric_name in TestabilityMetrics.get_class_lexicon_metrics_names():
+        one_class_metrics_value.append(class_lexicon_metrics_dict[metric_name])
+
+    # Write class_ordinary_metrics_dict
+    for metric_name in TestabilityMetrics.get_class_ordinary_metrics_names():
+        one_class_metrics_value.append(class_ordinary_metrics_dict[metric_name])
+
+    db.close()
+    return one_class_metrics_value
+
+
 # ------------------------------------------------------------------------
 class PreProcess:
     """
@@ -1015,7 +1050,7 @@ class PreProcess:
         projects = [name for name in os.listdir(root_path) if os.path.isdir(os.path.join(root_path, name))]
         for project_ in projects:
             command_ = cmd.format(root_path, project_, root_path + project_)
-            print('executing command {0}'.format(command_))
+            # print('executing command {0}'.format(command_))
             # returned_value_in_byte = subprocess.check_output(command_, shell=True)
             os.system('cmd /c "{0}"'.format(command_))
             # os.system('cmd / k "{0}"'.format(command_))
@@ -1024,15 +1059,16 @@ class PreProcess:
     def extract_project_classes_all(cls, udbs_path, class_list_csv_path_root=r'class_list_csvs/'):
         files = [f for f in os.listdir(udbs_path) if os.path.isfile(os.path.join(udbs_path, f))]
         for f in files:
-            print('processing understand db file {0}:'.format(f))
-            db = understand.open(os.path.join(udbs_path, f))
+            # print('processing understand db file {0}:'.format(f))
+            db = und.open(os.path.join(udbs_path, f))
             cls.write_project_classes(project_name=f[:-4], db=db, csv_path=class_list_csv_path_root + f[:-4] + '.csv')
-            print('processing understand db file {0} was finished'.format(f))
+            db.close()
+            # print('processing understand db file {0} was finished'.format(f))
 
     @classmethod
     def extract_project_classes(cls, db):
         classes_list = UnderstandUtility.get_project_classes_longnames_java(db=db)
-        print('@understand', len(set(classes_list)), set(classes_list))
+        # print('@understand', len(set(classes_list)), set(classes_list))
         return classes_list
 
     @classmethod
@@ -1055,56 +1091,16 @@ class PreProcess:
                     class_entities.append(class_entity_)
                 else:
                     # We do not need a class without any method!
-                    warnings.warn('Requested class entity with name "{0}" does not have any method!'.format(class_name_))
+                    warnings.warn(
+                        'Requested class entity with name "{0}" does not have any method!'.format(class_name_))
             else:
                 # if class not found it may be an enum, or interface so we simply ignore it for metric computation
-                warnings.warn('Requested class entity with name "{0}" was not found int the project!'.format(class_name_))
+                warnings.warn(
+                    'Requested class entity with name "{0}" was not found int the project!'.format(class_name_))
         return class_entities
 
     @classmethod
-    def extract_metrics_and_coverage_all(cls, udbs_path: str = r'sf110_without_test',
-                                         class_list_csv_path: str = r'runtime_result/evosuit160_sf110_result_html_with_project.csv',
-                                         csvs_path: str = r'sf110_csvs_without_test_e3/',
-                                         ):
-        df = pd.read_csv(class_list_csv_path, delimiter=',', index_col=False)
-        files = [f for f in os.listdir(udbs_path) if os.path.isfile(os.path.join(udbs_path, f))]
-
-        t = list()
-        p = list()
-        for i, f in enumerate(files):
-            print('processing understand db file {0}:'.format(f))
-            db = understand.open(os.path.join(udbs_path, f))
-
-            # cls.check_compute_metrics_by_class_list(project_name=f[:-4], database=db, class_list=df, csv_path=csvs_path)
-            # t.append(threading.Thread(target=cls.check_compute_metrics_by_class_list, args=(f[:-4], db, df, csvs_path, )))
-            # t[i].start()
-
-            # p.append(multiprocessing.Process(target=cls.check_compute_metrics_by_class_list, args=(f[:-4], db, df, csvs_path, )))
-            # p[i].start()
-
-            cls.compute_metrics_by_class_list(project_name=f[:-4], database=db, class_list=df, csv_path=csvs_path)
-
-            print('processing understand db file {0} was finished'.format(f))
-
-    @classmethod
-    def check_compute_metrics_by_class_list(cls, db=None, class_list=None, csv_path=None):
-        class_entities = cls.read_project_classes(db=db, classes_names_list=class_list)
-        print('Number of classes is: {1}'.format(len(class_entities)))
-
-        columns = ['Project', 'NumberOfClass']
-        columns.extend(TestabilityMetrics.get_all_metrics_names())
-
-        dummy_data = [0 for i in range(0, len(columns) - 2)]
-        dummy_data.insert(0, 'project_name')
-        dummy_data.insert(1, len(class_entities))
-
-        df = pd.DataFrame(data=[dummy_data], columns=columns)
-        # print(df)
-        # print(columns)
-        df.to_csv(csv_path + '.csv', index=False, )
-
-    @classmethod
-    def compute_metrics_by_class_list(cls, db=None, class_list=None):
+    def compute_metrics_by_class_list(cls, project_path, n_jobs):
         all_class_metrics_value = list()
 
         # print('Calculating project metrics')
@@ -1112,49 +1108,19 @@ class PreProcess:
         # if project_metrics_dict is None:
         #     raise TypeError('No project metrics for project {} was found!'.format(project_name))
 
-        class_entities = cls.read_project_classes(db=db, classes_names_list=class_list, )
-        for class_entity in class_entities:
-            one_class_metrics_value = [class_entity.longname()]
-            # print('Calculating package metrics')
-            package_metrics_dict = TestabilityMetrics.compute_java_package_metrics(db=db,
-                                                                                   class_name=class_entity.longname())
-            if package_metrics_dict is None:
-                # raise TypeError('No package metric for item {} was found'.format(class_entity.longname()))
-                continue
-            # print('Calculating class lexicon metrics')
-            class_lexicon_metrics_dict = TestabilityMetrics.compute_java_class_metrics_lexicon(db=db,
-                                                                                               entity=class_entity)
-            if class_lexicon_metrics_dict is None:
-                # raise TypeError('No class lexicon metric for item {} was found'.format(class_entity.longname()))
-                continue
-            # print('Calculating class ordinary metrics')
-            class_ordinary_metrics_dict = TestabilityMetrics.compute_java_class_metrics2(db=db,
-                                                                                         entity=class_entity)
-            if class_ordinary_metrics_dict is None:
-                # raise TypeError('No class ordinary metric for item {} was found'.format(class_entity.longname()))
-                continue
+        # class_entities = cls.read_project_classes(db=db, classes_names_list=class_list, )
+        db = und.open(project_path)
+        class_list = cls.extract_project_classes(db=db)
+        db.close()
 
-            # Write project_metrics_dict
-            # for metric_name in TestabilityMetrics.get_project_metrics_names():
-            #     one_class_metrics_value.append(project_metrics_dict[metric_name])
-
-            # Write package_metrics_dict
-            for metric_name in TestabilityMetrics.get_package_metrics_names():
-                one_class_metrics_value.append(package_metrics_dict[metric_name])
-
-            # Write class_lexicon_metrics_dict
-            for metric_name in TestabilityMetrics.get_class_lexicon_metrics_names():
-                one_class_metrics_value.append(class_lexicon_metrics_dict[metric_name])
-
-            # Write class_ordinary_metrics_dict
-            for metric_name in TestabilityMetrics.get_class_ordinary_metrics_names():
-                one_class_metrics_value.append(class_ordinary_metrics_dict[metric_name])
-
-            all_class_metrics_value.append(one_class_metrics_value)
+        res = Parallel(n_jobs=n_jobs, )(
+            delayed(do)(class_entity_long_name, project_path) for class_entity_long_name in class_list
+        )
+        res = list(filter(None, res))
 
         columns = ['Class']
         columns.extend(TestabilityMetrics.get_all_metrics_names())
-        df = pd.DataFrame(data=all_class_metrics_value, columns=columns)
+        df = pd.DataFrame(data=res, columns=columns)
         # print('df for class {0} with shape {1}'.format(project_name, df.shape))
         # df.to_csv(csv_path + project_name + '.csv', index=False)
         return df
@@ -1162,7 +1128,7 @@ class PreProcess:
     @classmethod
     def compute_metrics_for_single_class(cls, class_name, und_path, result_csv):
         all_class_metrics_value = list()
-        database_ = understand.open(und_path)
+        database_ = und.open(und_path)
         class_entity = UnderstandUtility.get_class_entity_by_name(db=database_, class_name=class_name)
 
         one_class_metrics_value = [class_entity.longname()]
@@ -1201,6 +1167,7 @@ class PreProcess:
         df.drop(columns=['NOCLINFILE'], inplace=True)
         df['CSNOM'] = df['CSNOIM'] + df['CSNOSM']
         # df.to_csv(result_csv, index=False)
+        database_.close()
         return df
 
 
@@ -1250,32 +1217,36 @@ class TestabilityModel(object):
         # df_predict_data = pd.read_csv(predict_data_path, delimiter=',', index_col=False)
         X_test1 = df_predict_data.iloc[:, 1:]
         X_test = self.scaler.transform(X_test1)
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(X_test,)
 
         df_new = pd.DataFrame(df_predict_data.iloc[:, 0], columns=['Class'])
         df_new['PredictedTestability'] = list(y_pred)
 
-        print(df_new)
+        # print(df_new)
         # df_new.to_csv(r'dataset06/refactored01010_predicted_testability.csv', index=True, index_label='Row')
         return df_new['PredictedTestability'].mean()
 
 
 # Test driver
-def main():
+def main(project_path, initial_value=1.0):
     """
     A demo of using testability_prediction module to measure testability quality attribute with machine learning
     """
-    # TODO: project_path as input + return value
-    # project_path = '../benchmark_projects/ganttproject/biz.ganttproject.core/biz.ganttproject.core.und'  # T=52.53%
-    project_path = '../benchmark_projects/JSON/JSON.und'  # T=45.31%
-    db = understand.open(project_path)
+    # db = und.open(project_path)
     p = PreProcess()
-    classes_longnames_list = p.extract_project_classes(db=db)
-    df = p.compute_metrics_by_class_list(db=db, class_list=classes_longnames_list)
-    model = TestabilityModel(df_path=r'data_model/DS07012.csv')
-    testability_ = model.inference(model_path='data_model/VR1_DS1.joblib', df_predict_data=df)
-    print('testability=', testability_)
+    # classes_longnames_list = p.extract_project_classes(db=db)
+    df = p.compute_metrics_by_class_list(project_path, n_jobs=7)  # n_job must be set to number of CPU cores
+    # db.close()
+    model = TestabilityModel(df_path=r'../metrics/data_model/DS07012.csv')
+    testability_ = model.inference(model_path='../metrics/data_model/VR1_DS1.joblib', df_predict_data=df)
+    # print('testability=', testability_)
+    return testability_ / initial_value
 
 
+# Test module
 if __name__ == '__main__':
-    main()
+    # project_path_ = r'../benchmark_projects/ganttproject/biz.ganttproject.core/biz.ganttproject.core.und'  # T=0.5253
+    # project_path_ = r'../benchmark_projects/JSON/JSON.und'  # T=0.4531
+    # project_path_ = r'D:/IdeaProjects/JSON20201115/JSON20201115.und'  # T=0.4749
+    project_path_ = r'D:/IdeaProjects/jvlt-1.3.2/src.und'  # T=0.4212
+    print(main(project_path_))

@@ -1,4 +1,13 @@
-from gen.javaLabeled.JavaLexer import JavaLexer
+"""
+
+## Introduction
+
+Make Class Non-Final refactoring operation
+
+"""
+
+__version__ = '0.1.1'
+__author__ = 'Morteza Zakeri'
 
 try:
     import understand as und
@@ -8,18 +17,23 @@ except ImportError as e:
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
+from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
 
 class MakeNonFinalClassRefactoringListener(JavaParserLabeledListener):
     """
-    To implement extract class refactoring based on its actors.
-    Creates a new class and move fields and methods from the old class to the new one
+
+    To implement Make Class Non-Final refactoring based on its actors.
+
     """
 
     def __init__(self, common_token_stream: CommonTokenStream = None, class_name: str = None):
+        """
 
+
+        """
 
         if common_token_stream is None:
             raise ValueError('common_token_stream is None')
@@ -38,21 +52,19 @@ class MakeNonFinalClassRefactoringListener(JavaParserLabeledListener):
         self.TAB = "\t"
         self.NEW_LINE = "\n"
         self.code = ""
-    def enterTypeDeclaration(self, ctx:JavaParserLabeled.TypeDeclarationContext):
 
+    def enterTypeDeclaration(self, ctx: JavaParserLabeled.TypeDeclarationContext):
 
-        if  self.objective_class == ctx.classDeclaration().IDENTIFIER().getText():
-            #modifier=ctx.getText().split(",")
-            is_fanal=False
-            for i in range (0, len(ctx.classOrInterfaceModifier())):
-             if ctx.classOrInterfaceModifier(i).getText()=="final":
-               self.token_stream_rewriter.replaceRange(
-               from_idx=ctx.classOrInterfaceModifier(i).start.tokenIndex,
-               to_idx=ctx.classOrInterfaceModifier(i).stop.tokenIndex,
-               text=""
-                )
-
-
+        if self.objective_class == ctx.classDeclaration().IDENTIFIER().getText():
+            # modifier=ctx.getText().split(",")
+            is_fanal = False
+            for i in range(0, len(ctx.classOrInterfaceModifier())):
+                if ctx.classOrInterfaceModifier(i).getText() == "final":
+                    self.token_stream_rewriter.replaceRange(
+                        from_idx=ctx.classOrInterfaceModifier(i).start.tokenIndex,
+                        to_idx=ctx.classOrInterfaceModifier(i).stop.tokenIndex,
+                        text=""
+                    )
 
     # def enterFieldDeclaration(self, ctx:JavaParserLabeled.FieldDeclarationContext):
     #     if self.is_source_class:
@@ -104,8 +116,8 @@ if __name__ == '__main__':
     for cls in db.ents("class"):
         if cls.simplename() == source_class:
             main_file = cls.parent().longname()
-
-    stream = FileStream(main_file, encoding='utf8')
+    db.close()
+    stream = FileStream(main_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
@@ -116,5 +128,5 @@ if __name__ == '__main__':
     walker = ParseTreeWalker()
     walker.walk(t=parse_tree, listener=my_listener)
 
-    with open(main_file, mode='w', newline='') as f:
+    with open(main_file, mode='w', encoding='utf8', errors='ignore', newline='') as f:
         f.write(my_listener.token_stream_rewriter.getDefaultText())

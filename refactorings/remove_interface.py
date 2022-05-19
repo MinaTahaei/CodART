@@ -1,4 +1,6 @@
-from gen.javaLabeled.JavaLexer import JavaLexer
+"""
+
+"""
 
 try:
     import understand as und
@@ -8,6 +10,7 @@ except ImportError as e:
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
+from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
@@ -79,7 +82,7 @@ if __name__ == '__main__':
         if cls.simplename() == source_class:
             main_file = cls.parent().longname()
 
-    stream = FileStream(main_file, encoding='utf8')
+    stream = FileStream(main_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
@@ -92,3 +95,4 @@ if __name__ == '__main__':
 
     with open(main_file, mode='w', newline='') as f:
         f.write(my_listener.token_stream_rewriter.getDefaultText())
+    db.close()

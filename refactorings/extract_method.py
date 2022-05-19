@@ -1,27 +1,57 @@
-from antlr4 import *
-from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
-from gen.javaLabeled.JavaLexer import JavaLexer
-from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
-import numpy as np
-
 """
-    An Extraction method refactoring class for using compiler listeners 
-    Authors: Mohammad Sajad Naghizadeh, Sadegh Jafari, Sina Ziaee, Mohammad reza babaee
-    
+
+## Introduction
+
+    An Extraction method refactoring class for using compiler listeners
+
     Description about the code:
-    - statements are each line of code showing an act for example a = 5; is an statement.
+    - statements are each line of code showing an act for example a = 5; is a statement.
+
     - exact each method of each class.
-"""
+
+
+## Pre and post-conditions
+
+### Pre-conditions:
+
+No specific pre-condition
+
+### Post-conditions:
+
+No specific Post-condition
+
+
+## Conf object help
+
+   - Lines are calculated from beginning the beginning of file starting from 1 .
+
+
+## limitations
+
+ - Extracted lines must be a part of a method or a class constructor any other format simply would not work.
+ (though we don't know java even supports any other format)
+
 
 """
-    Conf object help:
-        -- lines are calculated from beginning the beginning of file starting from 1 .
-"""
 
-"""
-    limitations : 
-        -- extracted lines must be a part of a method or a class constructor any other format simply would not work.(though we don't know java even supports any other format)
-"""
+__version__ = "0.1.0"
+__author__ = "Morteza Zakeri"
+
+
+import json
+import logging
+
+import numpy as np
+from antlr4 import *
+
+from gen.javaLabeled.JavaLexer import JavaLexer
+from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
+from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
+
+# Config logging
+logger = logging.getLogger()
+
+
 
 
 def is_equivalent(a, b):
@@ -30,14 +60,24 @@ def is_equivalent(a, b):
     return False
 
 
-"""
-    Extract method factoring class extending javaParserLabeledListener
-"""
-
-
 class ExtractMethodRefactoring(JavaParserLabeledListener):
+    """
+
+    Extract method factoring class extending javaParserLabeledListener
+
+    """
 
     def __init__(self, lines: list):
+        """
+        Arges:
+
+            Lines (list<int>): A list of statements line numbers to be extracted form the method body.
+
+        Returns:
+
+              object (ExtractMethodRefactoring): An instance of ExtractMethodRefactoring
+
+        """
 
         # checks Target method and lines to be valid
         if lines is None or len(lines) == 0:
@@ -383,12 +423,12 @@ def get_tabs(line: str):
 
 # extract method function
 def extract_method(conf):
-    stream = FileStream(conf['target_file'], encoding="utf-8")
+    stream = FileStream(conf['target_file'], encoding="utf-8", errors='ignore')
     lexer = JavaLexer(stream)
     tokens = CommonTokenStream(lexer)
     parser = JavaParserLabeled(tokens)
     tree = parser.compilationUnit()
-    listener = ExtractMethodRefactoring(conf['lines'])
+    listener = ExtractMethodRefactoring(list(map(int, list(conf['lines'].keys()))))
     walker = ParseTreeWalker()
     walker.walk(
         listener=listener,
@@ -402,7 +442,7 @@ def extract_method(conf):
         raise Exception('New method name already exists.')
 
     output = []
-    file1 = open(conf['target_file'], 'r', encoding="utf-8")
+    file1 = open(conf['target_file'], 'r', encoding="utf-8", errors='ignore')
     lines = file1.readlines()
     line_num = 1
     # func_added = False
@@ -415,6 +455,8 @@ def extract_method(conf):
                 output.append(get_tabs(line) + listener.get_write_variable()
                               + conf['new_method_name'] + listener.get_args(False) + '\n')
             func.append(line)
+            if conf['lines'][line_num]:
+                output.append(line)
         elif line_num == listener.method_stop_line:
             output.append(line)
             output.append(get_tabs(line) + 'private ' + ('static ' if listener.is_target_method_static else '') +
@@ -436,29 +478,38 @@ def extract_method(conf):
         line_num += 1
     file1.close()
 
-    file2 = open(conf['output_file'], 'w', encoding="utf-8")
+    file2 = open(conf['output_file'], 'w', encoding="utf-8", errors='ignore')
     for item in output:
         file2.write(item)
     file2.close()
 
 
-"""
-    driver method
-"""
+def main(file_path, lines: dict):
+    """
 
+       The main API for Extract Method refactoring operation
 
-def main():
+    """
+
     print("Started Extract Method")
     _conf = {
-        'target_file': "/data/Dev/JavaSample/src/GodClass.java",
-        'output_file': "/data/Dev/JavaSample/src/GodClass.java",
-        'lines': [23, 24],
-        'new_method_name': 'printTest',
+        'target_file': file_path,
+        'output_file': file_path,
+        'lines': lines,
+        'new_method_name': 'newMethodByCodArt',
     }
     extract_method(_conf)
 
     print("Finished Extract Method")
 
 
-if __name__ == '__main__':
-    main()
+# Tests
+if __name__ == "__main__":
+    index = 0
+    print(len("D:/Final Project/IdeaProjects/"))
+    json_file_ = json.load(open('json-extract-method.json', 'r'))
+    file_path_ = json_file_[index]["file_path"][30:]
+    lines_ = json_file_[index]["lines"]
+    print(file_path_)
+    print(lines_)
+    main(file_path_, lines_)

@@ -1,26 +1,56 @@
-import logging
+"""
+## Introduction
+
+The module implements Move Field refactoring operation
+
+## Pre and post-conditions
+
+### Pre-conditions:
+
+Todo: Add pre-conditions
+
+### Post-conditions:
+
+Todo: Add post-conditions
+
+"""
+
+__version__ = '0.1.0'
+__author__ = 'Morteza Zakeri'
+
+# import logging
 
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
-from refactorings.utils.utils2 import parse_and_walk
+from codart.symbol_table import parse_and_walk
 
 try:
     import understand as und
 except ImportError as e:
     print(e)
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__file__)
+from sbse.config import logger
+
+# logging.basicConfig(level=logging.DEBUG)
+# logger = logging.getLogger(__file__)
 STATIC = "Public Static Variable"
-__author__ = "Seyyed Ali Ayati"
-logger.info("You can find me at: https://www.linkedin.com/in/seyyedaliayati/")
 
 
 class CutFieldListener(JavaParserLabeledListener):
+    """
+
+
+    """
+
     def __init__(self, class_name: str, instance_name: str, field_name: str, is_static: bool, import_statement: str,
                  rewriter: TokenStreamRewriter):
+        """
+
+
+        """
+
         self.class_name = class_name
         self.field_name = field_name
         self.is_static = is_static
@@ -131,7 +161,13 @@ class CheckCycleListener(JavaParserLabeledListener):
 
 
 def main(source_class: str, source_package: str, target_class: str, target_package: str, field_name: str,
-         udb_path: str):
+         udb_path: str, *args, **kwargs):
+    """
+
+    Move filed main API
+
+    """
+
     import_statement = None
     if source_package != target_package:
         import_statement = f"\nimport {target_package}.{target_class};"
@@ -139,14 +175,17 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
     db = und.open(udb_path)
 
     # Check if field is static
-    field_ent = db.lookup(f"{source_package}.{source_class}.{field_name}")
-    if len(field_ent) != 1:
-        logger.error("Entity not found.")
-        return None
+    field_ent = db.lookup(f"{source_package}.{source_class}.{field_name}", "Variable")
+    if len(field_ent) == 0:
+        logger.error(f"Entity not found with query: {source_package}.{source_class}.{field_name}.")
+        db.close()
+        return False
 
     if source_package == target_package and source_class == target_class:
         logger.error("Can not move to self.")
-        return None
+        db.close()
+        return False
+
     field_ent = field_ent[0]
     is_static = field_ent.kindname() == STATIC
 
@@ -156,7 +195,7 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
     # Find usages
     usages = {}
 
-    for ref in field_ent.refs("setby,useby"):
+    for ref in field_ent.refs("Setby, Useby"):
         file = ref.file().longname()
         if file in usages:
             usages[file].append(ref.line())
@@ -169,7 +208,10 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
         logger.error("This is a nested class.")
         logger.info(f"{source_package}.{source_class}.java")
         logger.info(f"{target_package}.{target_class}.java")
-        return None
+        db.close()
+        return False
+
+    db.close()
 
     # Check if there is an cycle
     listener = parse_and_walk(
@@ -180,7 +222,8 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
 
     if not listener.is_valid:
         logger.error(f"Can not move field because there is a cycle between {source_class}, {target_class}")
-        return
+        # db.close()
+        return False
 
     # Propagate Changes
     for file in usages.keys():
@@ -195,7 +238,6 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
 
     # Do the cut and paste!
     # Cut
-
     listener = parse_and_walk(
         file_path=src_class_file,
         listener_class=CutFieldListener,
@@ -217,9 +259,11 @@ def main(source_class: str, source_package: str, target_class: str, target_packa
         field_text=field_text,
     )
 
-    db.close()
+    # db.close()
+    return True
 
 
+# Tests
 if __name__ == '__main__':
     main(
         source_class="Source",

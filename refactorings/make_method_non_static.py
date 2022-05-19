@@ -1,26 +1,36 @@
 """
-The scripts implements different refactoring operations
 
+## Introduction
+
+The module implements make method non-static refactoring operation
+
+## Pre and post-conditions
+
+### Pre-conditions:
+
+Todo: Add pre-conditions
+
+### Post-conditions:
+
+Todo: Add post-conditions
 
 """
+
 __version__ = '0.1.0'
-__author__ = 'Morteza'
+__author__ = 'Morteza Zakeri'
 
-import networkx as nx
-
-from antlr4 import *
-from antlr4.TokenStreamRewriter import TokenStreamRewriter
-from gen.javaLabeled.JavaLexer import JavaLexer
-from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
-
-from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
-
-import visualization.graph_visualization
+import os
 
 try:
     import understand as understand
 except ImportError as e:
     print(e)
+
+from antlr4 import *
+from antlr4.TokenStreamRewriter import TokenStreamRewriter
+from gen.javaLabeled.JavaLexer import JavaLexer
+from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
+from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
 
 class Parameter:
@@ -38,13 +48,18 @@ class ConstructorOrMethod:
 
 class MakeMethodNonStaticRefactoringListener(JavaParserLabeledListener):
     """
-    To implement extract class refactoring based on its actors.
-    Creates a new class and move fields and methods from the old class to the new one
+
+    To implement Make Method None-Static refactoring based on its actors.
+
     """
 
     def __init__(
             self, common_token_stream: CommonTokenStream = None,
             target_class: str = None, target_methods: list = None):
+        """
+
+
+        """
 
         if common_token_stream is None:
             raise ValueError('common_token_stream is None')
@@ -138,20 +153,36 @@ class MakeMethodNonStaticRefactoringListener(JavaParserLabeledListener):
             constructor_text += '}\n'
             self.target_class_data['constructors'].append(ConstructorOrMethod(
                 name=self.target_class,
-                parameters=[Parameter(parameterType=p.typeType().getText(),
-                                      name=p.variableDeclaratorId().IDENTIFIER().getText()) for p in
-                            constructor_parameters],
+                parameters=[
+                    Parameter(parameterType=p.typeType().getText(),
+                              name=p.variableDeclaratorId().IDENTIFIER().getText()) for p in constructor_parameters
+                ],
                 text=constructor_text))
 
 
 def main(udb_path, target_class, target_methods):
-    main_file = ""
-    db = understand.open(udb_path)
-    for cls in db.ents("class"):
-        if cls.simplename() == target_class:
-            main_file = cls.parent().longname()
+    """
 
-    stream = FileStream(main_file, encoding='utf8')
+
+    """
+
+    main_file = None
+    db = understand.open(udb_path)
+    classes = db.ents("Class")
+    for cls in classes:
+        if cls.simplename() == target_class:
+            if cls.parent() is not None:
+                temp_file = str(cls.parent().longname(True))
+                if os.path.isfile(temp_file):
+                    main_file = temp_file
+                    break
+
+    if main_file is None:
+        db.close()
+        return False
+
+    db.close()
+    stream = FileStream(main_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
@@ -162,13 +193,16 @@ def main(udb_path, target_class, target_methods):
     walker = ParseTreeWalker()
     walker.walk(t=parse_tree, listener=my_listener)
 
-    with open(main_file, mode='w', newline='') as f:
+    with open(main_file, mode='w', encoding='utf8', errors='ignore', newline='') as f:
         f.write(my_listener.token_stream_rewriter.getDefaultText())
 
+    return True
 
+
+# Tests
 if __name__ == '__main__':
-    udb_path = "/home/ali/Desktop/code/TestProject/TestProject.udb"
-    target_class = "Website"
-    target_methods = "HELLO_FROM_STUDENT_WEBSITE"
+    udb_path_ = "/home/ali/Desktop/code/TestProject/TestProject.udb"
+    target_class_ = "Website"
+    target_methods_ = "HELLO_FROM_STUDENT_WEBSITE"
     # initialize with understand
-    main(udb_path, target_class, target_methods)
+    main(udb_path_, target_class_, target_methods_)

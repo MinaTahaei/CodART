@@ -1,7 +1,20 @@
+"""
+## Introduction
+
+Extract subclass refactoring
+
+"""
+
+__version__ = '0.1.0'
+__author__ = 'IUST students'
+
 import os
-from gen.javaLabeled.JavaLexer import JavaLexer
+
 from antlr4 import *
+from antlr4.tree import Tree
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
+
+from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
@@ -10,8 +23,11 @@ files_to_refactor = []
 
 class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
     """
-    To implement extract class refactoring based on its actors.
+
+    To implement extract subclass refactoring based on its actors.
+
     Creates a new class and move fields and methods from the old class to the new one
+
     """
 
     def __init__(
@@ -55,8 +71,12 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
 
     def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
         """
-        It checks if it is source class, we generate the declaration of the new class, by appending some text to self.code.
+
+        It checks if it is source class, we generate the declaration of the new class,
+        by appending some text to self.code.
+
         """
+
         class_identifier = ctx.IDENTIFIER().getText()
         if class_identifier == self.source_class:
             self.is_source_class = True
@@ -69,24 +89,33 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
 
     def exitClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
         """
-        It close the opened curly brackets If it is the source class.
+
+        It closes the opened curly brackets If it is the source class.
+
         """
+
         if self.is_source_class:
             self.code += "}"
             self.is_source_class = False
 
     def exitCompilationUnit(self, ctx: JavaParserLabeled.CompilationUnitContext):
         """
-        it writes self.code in the output path.​
+
+        It writes self.code in the output path.
+
         """
+
         child_file_name = self.new_class + ".java"
         with open(os.path.join(self.output_path, child_file_name), "w+") as f:
             f.write(self.code.replace('\r\n', '\n'))
 
     def enterVariableDeclaratorId(self, ctx: JavaParserLabeled.VariableDeclaratorIdContext):
         """
-        It sets the detected field to the field if it is one of the moved fields. ​
+
+        It sets the detected field to the field if it is one of the moved fields.
+
         """
+
         if not self.is_source_class:
             return None
         field_identifier = ctx.IDENTIFIER().getText()
@@ -95,8 +124,12 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
 
     def exitFieldDeclaration(self, ctx: JavaParserLabeled.FieldDeclarationContext):
         """
-        It gets the field name, if the field is one of the moved fields, we move it and delete it from the source program. ​
+
+        It gets the field name, if the field is one of the moved fields,
+        we move it and delete it from the source program.
+
         """
+
         if not self.is_source_class:
             return None
         field_identifier = ctx.variableDeclarators().variableDeclarator(0).variableDeclaratorId().IDENTIFIER().getText()
@@ -105,7 +138,7 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
         # print("field_names=", field_names)
         grand_parent_ctx = ctx.parentCtx.parentCtx
         if self.detected_field in field_names:
-            if (not grand_parent_ctx.modifier()):
+            if not grand_parent_ctx.modifier():
                 modifier = ""
             else:
                 modifier = grand_parent_ctx.modifier(0).getText()
@@ -125,8 +158,11 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
 
     def enterMethodDeclaration(self, ctx: JavaParserLabeled.MethodDeclarationContext):
         """
-        It sets the detected field to the method if it is one of the moved methods. ​
+
+        It sets the detected field to the method if it is one of the moved methods.
+
         """
+
         if not self.is_source_class:
             return None
         method_identifier = ctx.IDENTIFIER().getText()
@@ -135,8 +171,12 @@ class ExtractSubClassRefactoringListener(JavaParserLabeledListener):
 
     def exitMethodDeclaration(self, ctx: JavaParserLabeled.MethodDeclarationContext):
         """
-        It gets the method name, if the method is one of the moved methods, we move it to the subclass and delete it from the source program.
+
+        It gets the method name, if the method is one of the moved methods,
+        we move it to the subclass and delete it from the source program.
+
         """
+
         if not self.is_source_class:
             return None
         method_identifier = ctx.IDENTIFIER().getText()
@@ -302,7 +342,7 @@ class FindUsagesListener(JavaParserLabeledListener):
                  self.scope))
 
     def exitLocalVariableDeclaration(self, ctx: JavaParserLabeled.LocalVariableDeclarationContext):
-        if (ctx.typeType().getText() == self.source_class):
+        if ctx.typeType().getText() == self.source_class:
             self.aul.add_identifier(
                 (ctx.variableDeclarators().variableDeclarator(0).variableDeclaratorId().IDENTIFIER().getText(),
                  self.scope))
@@ -312,7 +352,7 @@ class FindUsagesListener(JavaParserLabeledListener):
         right_hand_side = ctx.children[-1]
         left_hand_side = ctx.children[0]
         if type(left_hand_side) == JavaParserLabeled.Expression0Context:
-            if type(right_hand_side) == tree.Tree.TerminalNodeImpl:
+            if type(right_hand_side) == Tree.TerminalNodeImpl:
                 if left_hand_side.getText() != 'this':
                     self.aul.add_field_to_identifier(identifier=(left_hand_side.getText(), self.scope),
                                                      field_name=right_hand_side.getText())
@@ -322,7 +362,7 @@ class FindUsagesListener(JavaParserLabeledListener):
                                                       method_name=right_hand_side.children[0].getText())
 
         elif type(left_hand_side) == JavaParserLabeled.Expression1Context:
-            if type(right_hand_side) == tree.Tree.TerminalNodeImpl:
+            if type(right_hand_side) == Tree.TerminalNodeImpl:
                 self.aul.add_field_to_identifier(identifier=(left_hand_side.children[-1].getText(), self.scope),
                                                  field_name=right_hand_side.getText())
             elif type(right_hand_side) == JavaParserLabeled.MethodCall0Context:
@@ -394,15 +434,15 @@ class PropagationListener(JavaParserLabeledListener):
             flag = False
             for child in ctx.variableDeclarators().children:
                 if child.getText() != ',':
-                    id = child.variableDeclaratorId().IDENTIFIER().getText()
-                    fields_used = self.aul.get_identifier_fields((id, self.scope))
-                    methods_used = self.aul.get_identifier_methods((id, self.scope))
+                    id_ = child.variableDeclaratorId().IDENTIFIER().getText()
+                    fields_used = self.aul.get_identifier_fields((id_, self.scope))
+                    methods_used = self.aul.get_identifier_methods((id_, self.scope))
 
                     if len(self.intersection(fields_used, self.moved_fields)) > 0 or len(
                             self.intersection(methods_used, self.moved_methods)) > 0:
                         flag = True
 
-            if flag == True:
+            if flag:
                 self.token_stream_rewriter.replaceRange(
                     from_idx=ctx.typeType().start.tokenIndex,
                     to_idx=ctx.typeType().stop.tokenIndex,
@@ -428,15 +468,15 @@ class PropagationListener(JavaParserLabeledListener):
             flag = False
             for child in ctx.variableDeclarators().children:
                 if child.getText() != ',':
-                    id = child.variableDeclaratorId().IDENTIFIER().getText()
-                    fields_used = self.aul.get_identifier_fields((id, self.scope))
-                    methods_used = self.aul.get_identifier_methods((id, self.scope))
+                    id_ = child.variableDeclaratorId().IDENTIFIER().getText()
+                    fields_used = self.aul.get_identifier_fields((id_, self.scope))
+                    methods_used = self.aul.get_identifier_methods((id_, self.scope))
 
                     if len(self.intersection(fields_used, self.moved_fields)) > 0 or len(
                             self.intersection(methods_used, self.moved_methods)) > 0:
                         flag = True
 
-            if flag == True:
+            if flag:
                 self.token_stream_rewriter.replaceRange(
                     from_idx=ctx.typeType().start.tokenIndex,
                     to_idx=ctx.typeType().stop.tokenIndex,
@@ -512,7 +552,7 @@ def main():
     # path_to_refactor = "C:\\Users\\asus\\Desktop\\benchmark_projects\\Chess_master"
     # new_class_file = "C:\\Users\\asus\\Desktop\\benchmark_projects\\Chess_master\\src\\game\\Pieceextracted.java"
 
-    stream = FileStream(father_path_file, encoding='utf8')
+    stream = FileStream(father_path_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
@@ -532,7 +572,7 @@ def main():
     extractJavaFilesAndProcess(path_to_refactor, father_path_file, new_class_file)
 
     for file in files_to_refactor:
-        stream = FileStream(file, encoding='utf8')
+        stream = FileStream(file, encoding='utf8', errors='ignore')
         lexer = JavaLexer(stream)
         token_stream = CommonTokenStream(lexer)
         parser = JavaParserLabeled(token_stream)
@@ -558,7 +598,7 @@ def main():
         # after find usages
 
         try:
-            stream = FileStream(file, encoding='utf8')
+            stream = FileStream(file, encoding='utf8', errors='ignore')
             lexer = JavaLexer(stream)
             token_stream = CommonTokenStream(lexer)
             parser = JavaParserLabeled(token_stream)
@@ -643,7 +683,8 @@ class IdentifierUsage:
 
 class AllUsageList:
     def __init__(self):
-        self.all_usage = dict()  # all_usage is a dictionary of IdentifierUsage       tuple(scope,identifier_name) ==> IdentifierUsage()
+        self.all_usage = dict()  # all_usage is a dictionary of IdentifierUsage
+        # tuple(scope,identifier_name) ==> IdentifierUsage()
 
     def is_already_used(self, identifier_usage: tuple):
         return self.get_tuple(identifier_usage) in self.all_usage
@@ -659,24 +700,24 @@ class AllUsageList:
         if self.get_tuple(identifier) in self.all_usage:
             self.all_usage[self.get_tuple(identifier)].add_method(method_name)
         else:
-            id = identifier[0]
+            id_ = identifier[0]
             tmp = identifier[1].copy()
             while len(tmp) > 0:
                 tmp.pop()
-                if self.get_tuple((id, tmp)) in self.all_usage:
-                    self.all_usage[self.get_tuple((id, tmp))].add_method(method_name)
+                if self.get_tuple((id_, tmp)) in self.all_usage:
+                    self.all_usage[self.get_tuple((id_, tmp))].add_method(method_name)
                     break
 
     def add_field_to_identifier(self, identifier: tuple, field_name: str):
         if self.get_tuple(identifier) in self.all_usage:
             self.all_usage[self.get_tuple(identifier)].add_field(field_name)
         else:
-            id = identifier[0]
+            id_ = identifier[0]
             tmp = identifier[1].copy()
             while len(tmp) > 0:
                 tmp.pop()
-                if self.get_tuple((id, tmp)) in self.all_usage:
-                    self.all_usage[self.get_tuple((id, tmp))].add_field(field_name)
+                if self.get_tuple((id_, tmp)) in self.all_usage:
+                    self.all_usage[self.get_tuple((id_, tmp))].add_field(field_name)
                     break
 
     def is_method_of_identifier(self, identifier: tuple, method_name: str):
@@ -691,23 +732,23 @@ class AllUsageList:
         if self.get_tuple(identifier) in self.all_usage:
             return self.all_usage[self.get_tuple(identifier)].get_methods_name()
         else:
-            id = identifier[0]
+            id_ = identifier[0]
             tmp = identifier[1].copy()
             while len(tmp) > 0:
                 tmp.pop()
-                if self.get_tuple((id, tmp)) in self.all_usage:
-                    return self.all_usage[self.get_tuple((id, tmp))].get_methods_name()
+                if self.get_tuple((id_, tmp)) in self.all_usage:
+                    return self.all_usage[self.get_tuple((id_, tmp))].get_methods_name()
 
     def get_identifier_fields(self, identifier: tuple):
         if self.get_tuple(identifier) in self.all_usage:
             return self.all_usage[self.get_tuple(identifier)].get_methods_name()
         else:
-            id = identifier[0]
+            id_ = identifier[0]
             tmp = identifier[1].copy()
             while len(tmp) > 0:
                 tmp.pop()
-                if self.get_tuple((id, tmp)) in self.all_usage:
-                    return self.all_usage[self.get_tuple((id, tmp))].get_fields_name()
+                if self.get_tuple((id_, tmp)) in self.all_usage:
+                    return self.all_usage[self.get_tuple((id_, tmp))].get_fields_name()
 
 
 def extractJavaFilesAndProcess(path, source_class_file, new_class_file):
@@ -725,5 +766,6 @@ def extractJavaFilesAndProcess(path, source_class_file, new_class_file):
         print("error to read")
 
 
+# Tests
 if __name__ == '__main__':
     main()

@@ -1,24 +1,50 @@
-from gen.javaLabeled.JavaLexer import JavaLexer
+"""
+
+## Introduction
+
+Make method non-final refactoring operation
+
+
+## Pre and post-conditions
+
+### Pre-conditions:
+
+Todo: Add pre-conditions
+
+### Post-conditions:
+
+Todo: Add post-conditions
+
+"""
+
+__version__ = '0.1.0'
+__author__ = "Morteza Zakeri"
 
 try:
     import understand as und
 except ImportError as e:
     print(e)
+
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
+from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
 
 class MakeMethodNonFinalRefactoringListener(JavaParserLabeledListener):
     """
-    To implement extract class refactoring based on its actors.
-    Creates a new class and move fields and methods from the old class to the new one
+
+    To implement Make Method Non-Final refactoring based on its actors.
+
     """
 
     def __init__(self, common_token_stream: CommonTokenStream = None, source_class=None, method_name: str = None):
+        """
 
+
+        """
         if method_name is None:
             self.method_name = ""
         else:
@@ -63,8 +89,6 @@ class MakeMethodNonFinalRefactoringListener(JavaParserLabeledListener):
                     )
 
 
-
-
 if __name__ == '__main__':
     udb_path = "/home/ali/Desktop/code/TestProject/TestProject.udb"
     source_class = "App"
@@ -76,17 +100,20 @@ if __name__ == '__main__':
         if cls.simplename() == source_class:
             main_file = cls.parent().longname()
 
-    stream = FileStream(main_file, encoding='utf8')
+    stream = FileStream(main_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
     parser.getTokenStream()
     parse_tree = parser.compilationUnit()
-    my_listener = MakeMethodNonFinalRefactoringListener(common_token_stream=token_stream,
-                                                        source_class=source_class,
-                                                        method_name=method_name)
+    my_listener = MakeMethodNonFinalRefactoringListener(
+        common_token_stream=token_stream,
+        source_class=source_class,
+        method_name=method_name
+    )
     walker = ParseTreeWalker()
     walker.walk(t=parse_tree, listener=my_listener)
 
-    with open(main_file, mode='w', newline='') as f:
+    with open(main_file, mode='w', encoding='utf8', errors='ignore', newline='') as f:
         f.write(my_listener.token_stream_rewriter.getDefaultText())
+    db.close()

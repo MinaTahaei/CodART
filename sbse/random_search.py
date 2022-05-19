@@ -1,10 +1,18 @@
+"""
+Simple search-based refactoring with random-search algorithm
+
+"""
+
+__version__ = '0.1.'
+__author__ = 'Morteza Zakeri'
+
+
 import random
 
-from config import *
-from utilization.setup_understand import *
 from initialize import RandomInitialization
-from objectives import Objectives
-from utilization.directory_utils import update_understand_database, git_restore, create_understand_database
+from metrics.qmood import DesignQualityAttributes
+from codart.utility.directory_utils import update_understand_database, git_restore
+from config import *
 
 # udb_path = "D:\Dev\ganttproject\ganttproject.udb"
 # project_dir = "D:\Dev\ganttproject"
@@ -14,10 +22,11 @@ project_dir = "D:\Dev\JavaSample"
 rand_init = RandomInitialization(
         udb_path=udb_path,
         population_size=POPULATION_SIZE,
-        individual_size=INDIVIDUAL_SIZE
+        lower_band=LOWER_BAND,
+        upper_band=UPPER_BAND
     )
 rand_pop = rand_init.generate_population()
-score = Objectives(udb_path=udb_path).reusability
+score = DesignQualityAttributes(udb_path=udb_path).reusability
 k = 0
 limit = len(rand_pop)
 best_answer = None
@@ -35,11 +44,14 @@ while k < MAX_ITERATIONS and limit > 0:
     # execute individual
     for refactoring, params in individual:
         print(params)
-        refactoring(**params)
+        try:
+            refactoring(**params)
+        except Exception as e:
+            print(e)
         # update understand database
         update_understand_database(udb_path)
     # calculate objective
-    obj_score = Objectives(udb_path=udb_path).reusability
+    obj_score = DesignQualityAttributes(udb_path=udb_path).reusability
     print("Objective Score", obj_score)
     if obj_score < score:
         score = obj_score

@@ -22,7 +22,7 @@ from antlr4 import *
 from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from refactorings.make_field_non_static import MakeFieldNonStaticRefactoringListener
-from refactorings.make_field_static_1 import MakeFieldStaticRefactoringListener
+from refactorings.make_field_static import MakeFieldStaticRefactoringListener
 from refactorings.rename_class import RenameClassRefactoringListener
 
 
@@ -42,7 +42,7 @@ def main(args):
 
         print(file)
 
-        stream = FileStream(file, encoding='utf8')
+        stream = FileStream(file, encoding='utf8', errors='ignore')
         # input_stream = StdinStream()
 
         # Step 2: Create an instance of AssignmentStLexer

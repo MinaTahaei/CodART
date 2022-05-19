@@ -1,17 +1,17 @@
 """
+`java8speedy` module setup
+
+Adding support for Java 8 labeled grammar
 
 """
-__version__ = '0.3.0'
+__version__ = '0.5.0'
 __author__ = 'Morteza'
-
 
 import sys
 import os
 import platform
 import fnmatch
 import setuptools
-
-
 
 target = platform.system().lower()
 PLATFORMS = {'windows', 'linux', 'darwin', 'cygwin'}
@@ -33,10 +33,10 @@ def run_setup(with_binary):
         # Define an Extension object that describes the Antlr accelerator
         parser_ext = setuptools.Extension(
             # Extension name shall be at the same level as the sa_java8_parser.py module
-            name='java8speedy.parser.sa_java8labeled',
+            name='java8speedy.parser.sa_javalabeled_cpp_parser',
 
             # Add the Antlr runtime source directory to the include search path
-            include_dirs=["src/java8speedy/parser/cpp_src/antlr4-cpp-runtime"],
+            include_dirs=["src/java8speedy/parser/cpp_src/antlr4_cpp_runtime"],
 
             # Rather than listing each C++ file (Antlr has a lot!), discover them automatically
             sources=get_files("src/java8speedy/parser/cpp_src", "*.cpp"),
@@ -49,23 +49,25 @@ def run_setup(with_binary):
         ext_modules = []
 
     # Define a package
-    setuptools.setup (
+    setuptools.setup(
         name='java8speedy',
-        version='1.0.0',
+        version='1.2.0',
         description='Java Speedup Parser',
         packages=setuptools.find_packages("src"),
         package_dir={"": "src"},
         include_package_data=True,
         install_requires=[
-            "antlr4-python3-runtime",
+            "antlr4-python3-runtime >= 4.9.2",
         ],
         ext_modules=ext_modules,
         cmdclass={"build_ext": ve_build_ext},
     )
 
-#===============================================================================
+
+# ===============================================================================
 from setuptools.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
+
 
 def get_files(path, pattern):
     """

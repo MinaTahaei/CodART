@@ -1,6 +1,10 @@
 """
 This module implements the search-based refactoring with various search strategy
-using pymoo framework
+using pymoo framework.
+
+Gene, RefactoringOperation: One refactoring with params
+Individual: A list of RefactoringOperation
+SudoRandomInitialization: Population, list of Individual
 
 ## References
 [1] https://pymoo.org/customization/custom.html
@@ -15,20 +19,27 @@ import random
 from typing import List
 
 import numpy as np
-from pymoo.algorithms.nsga2 import NSGA2
-from pymoo.algorithms.nsga3 import NSGA3
-from pymoo.algorithms.so_genetic_algorithm import GA
+from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.algorithms.moo.nsga3 import NSGA3
+from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.factory import get_reference_directions, get_crossover
-from pymoo.model.crossover import Crossover
-from pymoo.model.duplicate import ElementwiseDuplicateElimination
-from pymoo.model.mutation import Mutation
-from pymoo.model.problem import Problem
-from pymoo.model.sampling import Sampling
+from pymoo.core.crossover import Crossover
+from pymoo.core.duplicate import ElementwiseDuplicateElimination
+from pymoo.core.mutation import Mutation
+from pymoo.core.problem import ElementwiseProblem
+from pymoo.core.sampling import Sampling
 from pymoo.optimize import minimize
-from pymoo.visualization.scatter import Scatter
 
-from sbse.objectives import Objectives
+from sbse import config
+from sbse.config import logger
+from sbse.initialize import RandomInitialization
+from metrics.qmood import DesignQualityAttributes
+from metrics.testability_prediction import main as testability_main
+from metrics.modularity import main as modularity_main
+from codart.utility.directory_utils import update_understand_database, git_restore
 
+
+# TODO: Parallelism, Double Check Befor Run on Server
 
 class Gene:
     """
@@ -36,7 +47,12 @@ class Gene:
     """
 
     def __init__(self, **kwargs):
-        self.params = kwargs
+        self.name = kwargs.get('name')
+        self.params = kwargs.get('params')
+        self.main = kwargs.get('main')
+
+    def __str__(self):
+        return self.name
 
 
 class RefactoringOperation(Gene):
@@ -58,16 +74,31 @@ class RefactoringOperation(Gene):
             }
 
         """
-
         super(RefactoringOperation, self).__init__(**kwargs)
 
     def do_refactoring(self):
-        # TODO:  Make this better
-        self.params['api'](**self.api_params)
-        if self.params['refactoring_name'] == 'make_field_static':
-            self.params['api'](source_class=self.params['source_class'], )
-        elif self.params['refactoring_name'] == 'make_field_non_static':
-            pass
+        logger.info(f"Running {self.name}")
+        logger.info(f"Parameters {self.params}")
+        try:
+            self.main(**self.params)
+        except Exception as e:
+            logger.error(f"Error in executing refactoring:\n {e}")
+
+    @classmethod
+    def generate_randomly(cls):
+        initializer = RandomInitialization(udb_path=config.UDB_PATH)
+        item = initializer.select_random()
+        return cls(
+            name=item[2],
+            params=item[1],
+            main=item[0]
+        )
+
+    def __str__(self):
+        return f"\n{self.name}\n{self.params}\n"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Individual(List):
@@ -80,14 +111,35 @@ class Individual(List):
 
     def __init__(self):
         super(Individual, self).__init__()
-        self.refactoring_operations = list()
+        self.refactoring_operations = []
 
-    def __eq__(self, other):
-        # Todo: Compare to instance of individual class to detect the equality
-        pass
+    def __iter__(self):
+        for ref in self.refactoring_operations:
+            yield ref
+
+    def __len__(self):
+        return len(self.refactoring_operations)
+
+    def __getitem__(self, item):
+        return self.refactoring_operations[item]
+
+    def __delitem__(self, key):
+        del self.refactoring_operations[key]
+
+    def __setitem__(self, key, value):
+        self.refactoring_operations[key] = value
+
+    def __str__(self):
+        return str(self.refactoring_operations)
+
+    def insert(self, __index: int, __object: RefactoringOperation) -> None:
+        self.refactoring_operations.insert(__index, __object)
+
+    def append(self, __object: RefactoringOperation) -> None:
+        self.insert(len(self.refactoring_operations), __object)
 
 
-class ProblemSingleObjective(Problem):
+class ProblemSingleObjective(ElementwiseProblem):
     """
         The CodART single-objective optimization work with only one objective, testability:
         """
@@ -95,8 +147,7 @@ class ProblemSingleObjective(Problem):
     def __init__(self, n_refactorings_lowerbound=50, n_refactorings_upperbound=75):
         super(ProblemSingleObjective, self).__init__(n_var=1,
                                                      n_obj=1,
-                                                     n_constr=0,
-                                                     elementwise_evaluation=True)
+                                                     n_constr=0)
         self.n_refactorings_lowerbound = n_refactorings_lowerbound
         self.n_refactorings_upperbound = n_refactorings_upperbound
 
@@ -110,23 +161,27 @@ class ProblemSingleObjective(Problem):
         and compute quality attributes for the refactored version of the program, as objectives of the search
 
         params:
-        x (Individual): x is an instance of Individual (i.e., a list of refactoring operations)
+        x[0] (Individual): x[0] is an instance of Individual (i.e., a list of refactoring operations)
 
         """
+        # Stage 0: Git restore
+        logger.debug("Executing git restore.")
+        git_restore(config.PROJECT_PATH)
+        update_understand_database(config.UDB_PATH)
         # Stage 1: Execute all refactoring operations in the sequence x
-        for refactoring_operation in x.refactoring_operations:
+        logger.debug(f"Reached Individual with Size {len(x[0])}")
+        for refactoring_operation in x[0]:
             refactoring_operation.do_refactoring()
-
-        # Update Understand DB
+            # Update Understand DB
+            update_understand_database(config.UDB_PATH)
         # Stage 2: Computing quality attributes
-        # Todo: Add testability and modularity objectives
-        # o1 = testability  ## Our only objective for testability improvement
-        # Git restore
+        score = testability_main(config.UDB_PATH)
+        logger.info(f"Testability Score: {score}")
         # Stage 3: Marshal objectives into vector
-        # out["F"] = np.array([-1 * o1], dtype=float)
+        out["F"] = np.array([-1 * score], dtype=float)
 
 
-class ProblemMultiObjective(Problem):
+class ProblemMultiObjective(ElementwiseProblem):
     """
     The CodART multi-objective optimization work with three objective:
         Objective 1: Mean value of QMOOD metrics
@@ -137,11 +192,9 @@ class ProblemMultiObjective(Problem):
     def __init__(self, n_refactorings_lowerbound=50, n_refactorings_upperbound=75):
         super(ProblemMultiObjective, self).__init__(n_var=1,
                                                     n_obj=3,
-                                                    n_constr=0,
-                                                    elementwise_evaluation=True)
+                                                    n_constr=0)
         self.n_refactorings_lowerbound = n_refactorings_lowerbound
         self.n_refactorings_upperbound = n_refactorings_upperbound
-        # self.ALPHABET = [c for c in string.ascii_lowercase]
 
     def _evaluate(self,
                   x,  #
@@ -156,25 +209,31 @@ class ProblemMultiObjective(Problem):
         x (Individual): x is an instance of Individual (i.e., a list of refactoring operations)
 
         """
+        # Stage 0: Git restore
+        logger.debug("Executing git restore.")
+        git_restore(config.PROJECT_PATH)
+        update_understand_database(config.UDB_PATH)
         # Stage 1: Execute all refactoring operations in the sequence x
-        for refactoring_operation in x.refactoring_operations:
+        logger.debug(f"Reached Individual with Size {len(x[0])}")
+        for refactoring_operation in x[0]:
             refactoring_operation.do_refactoring()
+            # Update Understand DB
+            update_understand_database(config.UDB_PATH)
 
         # Stage 2: Computing quality attributes
-        # Todo: Add testability and modularity objectives
-        # Todo: Normalize objective values in a standard range
-        # Todo: Reduce QMOOD metrics to one objective by averaging them
-        o1 = Objectives.reusability
-        o2 = Objectives.understandability
-        # o1 = 1/6 * sum qmood metrics
-        # o2 = testability  ## Our new objective
-        # o3 = modularity   ## Our new objective
-
+        obj = DesignQualityAttributes(udb_path=config.UDB_PATH)
+        o1 = obj.average_sum
+        del obj
+        o2 = testability_main(config.UDB_PATH)
+        o3 = modularity_main(config.UDB_PATH)
+        logger.info(f"QMOOD AVG Score: {o1}")
+        logger.info(f"Testability Score: {o2}")
+        logger.info(f"Modularity Score: {o3}")
         # Stage 3: Marshal objectives into vector
-        out["F"] = np.array([-1 * o1, -1 * o2], dtype=float)
+        out["F"] = np.array([-1 * o1, -1 * o2, -1 * o3], dtype=float)
 
 
-class ProblemManyObjective(Problem):
+class ProblemManyObjective(ElementwiseProblem):
     """
     The CodART many-objective optimization work with eight objective:
         Objective 1 to 6: QMOOD metrics
@@ -185,8 +244,7 @@ class ProblemManyObjective(Problem):
     def __init__(self, n_refactorings_lowerbound=50, n_refactorings_upperbound=75):
         super(ProblemManyObjective, self).__init__(n_var=1,
                                                    n_obj=8,
-                                                   n_constr=0,
-                                                   elementwise_evaluation=True)
+                                                   n_constr=0)
         self.n_refactorings_lowerbound = n_refactorings_lowerbound
         self.n_refactorings_upperbound = n_refactorings_upperbound
 
@@ -203,24 +261,40 @@ class ProblemManyObjective(Problem):
         x (Individual): x is an instance of Individual (i.e., a list of refactoring operations)
 
         """
+        # Git restore`
+        logger.debug("Executing git restore.")
+        git_restore(config.PROJECT_PATH)
+        update_understand_database(config.UDB_PATH)
         # Stage 1: Execute all refactoring operations in the sequence x
-        for refactoring_operation in x.refactoring_operations:
+        logger.debug(f"Reached Individual with Size {len(x[0])}")
+        for refactoring_operation in x[0]:
             refactoring_operation.do_refactoring()
+            # Update Understand DB
+            update_understand_database(config.UDB_PATH)
 
         # Stage 2: Computing quality attributes
-        # Todo: Add testability and modularity objectives
-        # Todo: Normalize objective values in a standard range
-        o1 = Objectives.reusability
-        o2 = Objectives.understandability
-        o3 = Objectives.flexibility
-        o4 = Objectives.functionality
-        o5 = Objectives.effectiveness
-        o6 = Objectives.extendability
-        # o7 = testability  ## Our new objective
-        # o8 = modularity   ## Our new objective
+        qmood = DesignQualityAttributes(udb_path=config.UDB_PATH)
+        o1 = qmood.reusability
+        o2 = qmood.understandability
+        o3 = qmood.flexibility
+        o4 = qmood.functionality
+        o5 = qmood.effectiveness
+        o6 = qmood.extendability
+        del qmood
+        o7 = testability_main(config.UDB_PATH)
+        o8 = modularity_main(config.UDB_PATH)
+
+        logger.info(f"Reusability Score: {o1}")
+        logger.info(f"Understandability Score: {o2}")
+        logger.info(f"Flexibility Score: {o3}")
+        logger.info(f"Functionality Score: {o4}")
+        logger.info(f"Effectiveness Score: {o5}")
+        logger.info(f"Extendability Score: {o6}")
+        logger.info(f"Testability Score: {o7}")
+        logger.info(f"Modularity Score: {o8}")
 
         # Stage 3: Marshal objectives into vector
-        out["F"] = np.array([-1 * o1, -1 * o2, -1 * o3, -1 * o4, -1 * o5, -1 * o6, ], dtype=float)
+        out["F"] = np.array([-1 * o1, -1 * o2, -1 * o3, -1 * o4, -1 * o5, -1 * o6, -1 * o7, -1 * o8, ], dtype=float)
 
 
 class SudoRandomInitialization(Sampling):
@@ -240,20 +314,26 @@ class SudoRandomInitialization(Sampling):
             n_samples (int): the same population size, pop_size
 
         """
-        X = np.full((n_samples, 1), None, dtype=np.object)
+
+        X = np.full((n_samples, 1), None, dtype=Individual)
+        population = RandomInitialization(
+            udb_path=config.UDB_PATH,
+            population_size=n_samples,
+            lower_band=problem.n_refactorings_lowerbound,
+            upper_band=problem.n_refactorings_upperbound
+        ).generate_population()
 
         for i in range(n_samples):
-            # we generate the solution length randomly between the lower and upper bounds of the solution length
-            individual_length = random.randint(problem.n_refactorings_lowerbound, problem.n_refactorings_upperbound)
-            individual = Individual()
-            for j in range(0, individual_length):
-                # Todo: Choose a random refactoring opportunity and fill the refactoring_params dict
-                refactoring_params = dict()
-
-                refactoring_operation = RefactoringOperation(**refactoring_params)
-                individual.refactoring_operations.append(refactoring_operation)
-            X[i, 0] = individual
-
+            individual_object = []  # list of refactoring operations
+            for ref in population[i]:
+                individual_object.append(
+                    RefactoringOperation(
+                        name=ref[2],
+                        params=ref[1],
+                        main=ref[0]
+                    )
+                )
+            X[i, 0] = individual_object
         return X
 
 
@@ -287,6 +367,7 @@ class AdaptiveSinglePointCrossover(Crossover):
         """
         Todo: Implementing adaptive single-point-cross-over
         """
+        print("Running crossover")
         # The input of has the following shape (n_parents, n_matings, n_var)
         # print(X.shape)
         # print(X)
@@ -338,18 +419,14 @@ class BitStringMutation(Mutation):
         self.mutation_probability = prob
 
     def _do(self, problem, X, **kwargs):
-        """
-
-        """
-        # for each individual
-        for i in range(0, len(X)):
+        for i, individual in enumerate(X):
             r = np.random.random()
             # with a probability of `mutation_probability` replace the refactoring operation with new one
             if r < self.mutation_probability:
-                pass
-                # Todo: Select a refactoring operation randomly and put in X[i, 0]
-                # j --> random. max: len(X[i])
-                # X[i, j] = new refactoring op.
+                # j is a random index in individual
+                j = random.randint(0, len(individual[0]) - 1)
+                random_refactoring_operation = RefactoringOperation.generate_randomly()
+                X[i][0][j] = random_refactoring_operation
 
         return X
 
@@ -376,7 +453,7 @@ def main():
     algorithms = list()
     # 1: GA
     algorithm = GA(
-        pop_size=100,
+        pop_size=config.POPULATION_SIZE,
         sampling=SudoRandomInitialization(),
         # crossover=AdaptiveSinglePointCrossover(prob=0.8),
         crossover=get_crossover("real_k_point", n_points=2),
@@ -386,7 +463,7 @@ def main():
     algorithms.append(algorithm)
 
     # 2: NSGA II
-    algorithm = NSGA2(pop_size=100,
+    algorithm = NSGA2(pop_size=config.POPULATION_SIZE,
                       sampling=SudoRandomInitialization(),
                       # crossover=AdaptiveSinglePointCrossover(prob=0.8),
                       crossover=get_crossover("real_k_point", n_points=2),
@@ -399,7 +476,7 @@ def main():
     # Todo: Ask for best practices in determining ref_dirs
     ref_dirs = get_reference_directions("energy", 8, 90, seed=1)
     algorithm = NSGA3(ref_dirs=ref_dirs,
-                      pop_size=100,
+                      pop_size=config.POPULATION_SIZE,
                       sampling=SudoRandomInitialization(),
                       # crossover=AdaptiveSinglePointCrossover(prob=0.8),
                       crossover=get_crossover("real_k_point", n_points=2),
@@ -410,19 +487,41 @@ def main():
 
     # Define problems
     problems = list()
-    problems.append(ProblemSingleObjective(n_refactorings_lowerbound=50, n_refactorings_upperbound=75))
-    problems.append(ProblemMultiObjective(n_refactorings_lowerbound=50, n_refactorings_upperbound=75))
-    problems.append(ProblemManyObjective(n_refactorings_lowerbound=50, n_refactorings_upperbound=75))
+    problems.append(
+        ProblemSingleObjective(n_refactorings_lowerbound=config.LOWER_BAND, n_refactorings_upperbound=config.UPPER_BAND)
+    )
+    problems.append(
+        ProblemMultiObjective(n_refactorings_lowerbound=config.LOWER_BAND, n_refactorings_upperbound=config.UPPER_BAND)
+    )
+    problems.append(
+        ProblemManyObjective(n_refactorings_lowerbound=config.LOWER_BAND, n_refactorings_upperbound=config.UPPER_BAND)
+    )
 
     # Do optimization for various problems with various algorithms
-    res = minimize(problem=problems[1],
-                   algorithm=algorithms[1],
-                   termination=('n_gen', 100),
+    res = minimize(problem=problems[2],
+                   algorithm=algorithms[2],
+                   termination=('n_gen', config.MAX_ITERATIONS),
                    seed=1,
                    verbose=True)
+    logger.info("** FINISHED **")
 
-    Scatter().add(res.F).show()
+    logger.info("Best Individual:")
+    logger.info(res.X)
+    logger.info("Objective Values:")
+    logger.info(res.F)
 
-    results = res.X[np.argsort(res.F[:, 0])]
-    count = [np.sum([e == "a" for e in r]) for r in results[:, 0]]
-    print(np.column_stack([results, count]))
+    logger.info("==================")
+    logger.info("Other Solutions:")
+    for ind in res.opt:
+        logger.info(ind.X)
+        logger.info(ind.F)
+        logger.info("==================")
+
+    logger.info(f"Start Time: {res.start_time}")
+    logger.info(f"End Time: {res.end_time}")
+    logger.info(f"Execution Time in Seconds: {res.exec_time}")
+
+
+if __name__ == '__main__':
+    config.log_experiment_info()
+    main()

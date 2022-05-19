@@ -1,4 +1,12 @@
-from gen.javaLabeled.JavaLexer import JavaLexer
+"""
+## Introduction
+
+Make class abstract
+
+"""
+
+__version__ = '0.1.0'
+__author__ = 'Morteza Zakeri'
 
 try:
     import understand as und
@@ -8,18 +16,23 @@ except ImportError as e:
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
+from gen.javaLabeled.JavaLexer import JavaLexer
 from gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
 from gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
 
 
 class MakeAbstractClassRefactoringListener(JavaParserLabeledListener):
     """
-    To implement extract class refactoring based on its actors.
-    Creates a new class and move fields and methods from the old class to the new one
+
+    To implement Make Class Abstract refactoring based on its actors.
+
     """
 
     def __init__(self, common_token_stream: CommonTokenStream = None, class_name: str = None):
+        """
 
+
+        """
 
         if common_token_stream is None:
             raise ValueError('common_token_stream is None')
@@ -39,8 +52,7 @@ class MakeAbstractClassRefactoringListener(JavaParserLabeledListener):
         self.NEW_LINE = "\n"
         self.code = ""
 
-
-    def enterClassDeclaration(self, ctx:JavaParserLabeled.ClassDeclarationContext):
+    def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
 
         print(ctx.IDENTIFIER().getText())
         if self.objective_class == ctx.IDENTIFIER().getText():
@@ -49,7 +61,7 @@ class MakeAbstractClassRefactoringListener(JavaParserLabeledListener):
             self.token_stream_rewriter.replaceRange(
                 from_idx=0,
                 to_idx=0,
-                text="abstract "+ctx.CLASS().getText()
+                text="abstract " + ctx.CLASS().getText()
             )
 
     # def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
@@ -107,7 +119,7 @@ class MakeAbstractClassRefactoringListener(JavaParserLabeledListener):
 
 class PropagationMakeAbstractClassRefactoringListener(JavaParserLabeledListener):
 
-    def __init__(self, common_token_stream: CommonTokenStream = None, Source_class= None, object_name=None,
+    def __init__(self, common_token_stream: CommonTokenStream = None, Source_class=None, object_name=None,
                  propagated_class_name=None):
 
         if Source_class is None:
@@ -139,36 +151,39 @@ class PropagationMakeAbstractClassRefactoringListener(JavaParserLabeledListener)
             self.is_class = True
         else:
             self.is_class = False
-    def enterClassBody(self, ctx:JavaParserLabeled.ClassBodyContext):
+
+    def enterClassBody(self, ctx: JavaParserLabeled.ClassBodyContext):
         if not self.is_class:
             return None
         self.token_stream_rewriter.insertBefore(program_name=self.token_stream_rewriter.DEFAULT_PROGRAM_NAME,
                                                 index=ctx.start.tokenIndex,
-                                                text=' extends '+ self.source_class
+                                                text=' extends ' + self.source_class
                                                 )
-    def enterVariableDeclarator(self, ctx:JavaParserLabeled.VariableDeclaratorContext):
+
+    def enterVariableDeclarator(self, ctx: JavaParserLabeled.VariableDeclaratorContext):
         if not self.is_class:
             return None
-        ctx_grandparent=ctx.parentCtx.parentCtx
+        ctx_grandparent = ctx.parentCtx.parentCtx
         if ctx.variableDeclaratorId().IDENTIFIER().getText() in self.object_name:
-            self.objectName=ctx.variableDeclaratorId().IDENTIFIER().getText()
+            self.objectName = ctx.variableDeclaratorId().IDENTIFIER().getText()
             if ctx_grandparent.typeType().classOrInterfaceType().IDENTIFIER(0).getText() in self.source_class:
                 self.token_stream_rewriter.delete(from_idx=ctx_grandparent.start.tokenIndex,
                                                   to_idx=ctx_grandparent.stop.tokenIndex,
                                                   program_name=self.token_stream_rewriter.DEFAULT_PROGRAM_NAME
                                                   )
-    def enterExpression(self, ctx:JavaParserLabeled.ExpressionContext):
+
+    def enterExpression(self, ctx: JavaParserLabeled.ExpressionContext):
         if not self.is_class:
             return None
-        if ctx.expression(0)!=None:
+        if ctx.expression(0) != None:
             if ctx.expression(0).primary() != None:
                 if ctx.expression(0).primary().IDENTIFIER().getText() in self.object_name:
-                    count=ctx.getChildCount()
-                    if count==3:
+                    count = ctx.getChildCount()
+                    if count == 3:
                         self.token_stream_rewriter.replaceRange(
                             from_idx=ctx.start.tokenIndex,
                             to_idx=ctx.stop.tokenIndex,
-                            text=ctx.children[count-1].getText()
+                            text=ctx.children[count - 1].getText()
                         )
 
 
@@ -193,8 +208,8 @@ class PropagationMakeAbstractClassGetObjectsRefactoringListener(JavaParserLabele
             self.token_stream_rewriter = TokenStreamRewriter(common_token_stream)
 
         self.is_class = False
-        self.current_class=''
-        self.objects=list()
+        self.current_class = ''
+        self.objects = list()
 
     def enterClassDeclaration(self, ctx: JavaParserLabeled.ClassDeclarationContext):
         # print("Propagation started, please wait...")
@@ -202,18 +217,18 @@ class PropagationMakeAbstractClassGetObjectsRefactoringListener(JavaParserLabele
         if class_identifier in self.propagated_class_name:
             self.is_class = True
             print("Propagation started, please wait...")
-            self.current_class=class_identifier
+            self.current_class = class_identifier
         else:
             self.is_class = False
 
-    def enterVariableDeclarator(self, ctx:JavaParserLabeled.VariableDeclaratorContext):
+    def enterVariableDeclarator(self, ctx: JavaParserLabeled.VariableDeclaratorContext):
         if not self.is_class:
             return None
         grand_parent_ctx = ctx.parentCtx.parentCtx
         if grand_parent_ctx.typeType().classOrInterfaceType() != None:
-            className=grand_parent_ctx.typeType().classOrInterfaceType().IDENTIFIER(0).getText()
+            className = grand_parent_ctx.typeType().classOrInterfaceType().IDENTIFIER(0).getText()
             if className in self.source_class:
-                objectname=ctx.variableDeclaratorId().IDENTIFIER().getText()
+                objectname = ctx.variableDeclaratorId().IDENTIFIER().getText()
                 self.objects.append(objectname)
 
 
@@ -223,12 +238,11 @@ if __name__ == '__main__':
     # initialize with understand
     main_file = ""
     db = und.open(udb_path)
-    print("Here")
     for cls in db.ents("class"):
         if cls.simplename() == source_class:
             main_file = cls.parent().longname()
 
-    stream = FileStream(main_file, encoding='utf8')
+    stream = FileStream(main_file, encoding='utf8', errors='ignore')
     lexer = JavaLexer(stream)
     token_stream = CommonTokenStream(lexer)
     parser = JavaParserLabeled(token_stream)
@@ -241,4 +255,4 @@ if __name__ == '__main__':
 
     with open(main_file, mode='w', newline='') as f:
         f.write(my_listener.token_stream_rewriter.getDefaultText())
-
+    db.close()
