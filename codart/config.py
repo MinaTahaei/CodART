@@ -31,7 +31,7 @@ INIT_POP_FILE = os.environ.get("INIT_POP_FILE")
 NGEN = int(os.environ.get("NGEN"))
 RESUME_EXECUTION = os.environ.get("RESUME_EXECUTION")
 BENCHMARK_INDEX = int(os.environ.get("BENCHMARK_INDEX", 0))
-
+#print(BENCHMARK_INDEX)
 EXPERIMENTER = os.environ.get("EXPERIMENTER")
 SCRIPT = os.environ.get("SCRIPT")
 DESCRIPTION = os.environ.get("DESCRIPTION")
@@ -139,6 +139,7 @@ BENCHMARKS = {
         'jhotdraw-6.0b1/God-Class_jhotdraw-6.0b1.csv',
     ],
 }
+#print(BENCHMARKS['PROJ'])
 
 PROJECT_PATH = os.path.join(PROJECT_ROOT_DIR, BENCHMARKS['PROJ'][BENCHMARK_INDEX]).replace('/', '\\')
 UDB_PATH = os.path.join(UDB_ROOT_DIR, BENCHMARKS['UDB'][BENCHMARK_INDEX]).replace('/', '\\')
@@ -378,6 +379,19 @@ INITIAL_METRICS = {
 }
 
 CURRENT_METRICS = INITIAL_METRICS.get(PROJECT_NAME)
+if CURRENT_METRICS is None:
+    # Default metrics if PROJECT_NAME not found in INITIAL_METRICS
+    CURRENT_METRICS = {
+        'reusability': 1.,
+        'understandability': 1.,
+        'flexibility': 1.,
+        'functionality': 1.,
+        'effectiveness': 1.,
+        'extendability': 1.,
+        'MODULE': 1.,
+        'TEST': 1.,
+        'TEST3': 1.
+    }
 if NGEN == 0:
     global_execution_start_time = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 elif NGEN > MAX_ITERATIONS:

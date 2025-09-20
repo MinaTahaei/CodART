@@ -30,11 +30,10 @@ except ImportError as e:
 from antlr4 import *
 from antlr4.TokenStreamRewriter import TokenStreamRewriter
 
-from codart.gen.javaLabeled.JavaLexer import JavaLexer
-from codart.gen.javaLabeled.JavaParserLabeled import JavaParserLabeled
-from codart.gen.javaLabeled.JavaParserLabeledListener import JavaParserLabeledListener
-from codart.config import logger
-
+from codart.gen.JavaLexer import JavaLexer
+from codart.gen.JavaParserLabeled import JavaParserLabeled
+from codart.gen.JavaParserLabeledListener import JavaParserLabeledListener
+from codart.learner.sbr_initializer.utils.utility import logger, config
 
 class CheckOverrideListener(JavaParserLabeledListener):
     pass
@@ -348,17 +347,4 @@ def main(udb_path: str, children_classes: list, method_name: str, *args, **kwarg
     # end of propagate
 
     return True
-
-
-# Tests
-if __name__ == '__main__':
-    udb_path_ = "D:/IdeaProjects/JSON20201115/JSON20201115.und"
-    children_class_ = ['XMLTokener', 'HTTPTokener']
-    moved_method_ = "nextToken"
-    main(
-        udb_path=udb_path_,
-        children_classes=children_class_,
-        method_name=moved_method_
-    )
-
 

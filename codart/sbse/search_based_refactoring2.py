@@ -75,11 +75,13 @@ from pymoo.core.sampling import Sampling
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.algorithms.moo.nsga3 import NSGA3
+from pymoo.util.ref_dirs import get_reference_directions
+from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 
-from pymoo.factory import get_reference_directions, get_decision_making
 from pymoo.operators.selection.tournament import TournamentSelection
 from pymoo.optimize import minimize
-from pymoo.util.termination.default import MultiObjectiveDefaultTermination
+from pymoo.termination.default import DefaultMultiObjectiveTermination
+
 
 from codart.metrics.qmood import DesignQualityAttributes
 from codart.metrics.modularity import main as modularity_main
@@ -624,11 +626,8 @@ class PopulationInitialization(Sampling):
         Since the problem having only one variable, we return a matrix with the shape (n,1)
 
         Args:
-
             problem (Problem): An instance of pymoo Problem class to be optimized.
-
             n_samples (int): The same population size, pop_size.
-
         """
         if os.path.exists(config.INIT_POP_FILE):
             self._initializer.load_population(path=config.INIT_POP_FILE)
@@ -638,6 +637,19 @@ class PopulationInitialization(Sampling):
                 self._initializer.dump_population(path=initial_pop_path)
         else:
             population = self._initializer.generate_population()
+
+        # Check if we successfully generated a population
+        if not population:
+            raise RuntimeError(
+                "Failed to generate a valid initial population. Check your refactoring parameters and ensure there are viable refactoring candidates in your project.")
+
+        # Ensure we have at least n_samples individuals
+        if len(population) < n_samples:
+            logger.warning(
+                f"Generated population size ({len(population)}) is less than required population size ({n_samples}). Will duplicate some individuals to match required size.")
+            # Duplicate some individuals if needed
+            while len(population) < n_samples:
+                population.append(random.choice(population))
 
         x = np.full((n_samples, 1), None, dtype=Individual)
         for i in range(n_samples):
@@ -1129,13 +1141,12 @@ def main():
     algorithms.append(alg3)
 
     # Termination of algorithms
-    my_termination = MultiObjectiveDefaultTermination(
-        x_tol=None,
-        cv_tol=None,
-        f_tol=0.0015,
-        nth_gen=5,
-        n_last=5,
-        n_max_gen=config.MAX_ITERATIONS,  # about 1000 - 1400
+    my_termination = DefaultMultiObjectiveTermination(
+        xtol=1e-8,
+        cvtol=1e-6,
+        ftol=0.0015,
+        period=5,
+        n_max_gen=config.MAX_ITERATIONS,
         n_max_evals=1e6
     )
 
@@ -1225,7 +1236,7 @@ def main():
     try:
         pf = res.F
         # dm = HighTradeoffPoints()
-        dm = get_decision_making("high-tradeoff")
+        dm = HighTradeoffPoints()
         I = dm.do(pf)
 
         logger.info("============ High-tradeoff points refactoring sequences ============")
